@@ -1,0 +1,3 @@
+# Only needed for AI_PROVIDER=local or AI_PROVIDER=video (a PyTorch model). The api and dev providers do not need it.
+# For GPU machines, install the CUDA build that matches your driver from https://pytorch.org/get-started/locally/
+torch>=2.4

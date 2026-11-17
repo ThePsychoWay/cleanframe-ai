@@ -1,0 +1,10 @@
+# HTTPS for the two public addresses (Caddy gets and renews the certificates by itself).
+# API_DOMAIN and STORAGE_DOMAIN come from .env, e.g. api.example.com and files.example.com.
+{$API_DOMAIN} {
+	reverse_proxy api:8000
+}
+
+{$STORAGE_DOMAIN} {
+	# Browsers upload video parts straight here with signed links.
+	reverse_proxy minio:9000
+}

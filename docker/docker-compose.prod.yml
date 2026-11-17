@@ -1,0 +1,32 @@
+# Production extras for a single server. Use together with the main file:
+#
+#   docker compose --env-file .env -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build api worker beat postgres redis minio caddy
+#
+# (Do not start the `web` service: the website runs on Vercel.)
+# Only Caddy is reachable from the internet; the database, Redis and MinIO are closed to it.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env}
+      STORAGE_DOMAIN: ${STORAGE_DOMAIN:?set STORAGE_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on: [api, minio]
+
+  postgres:
+    ports: !reset []
+  redis:
+    ports: !reset []
+  minio:
+    ports: !reset []
+  api:
+    ports: !reset []
+
+volumes:
+  caddydata:

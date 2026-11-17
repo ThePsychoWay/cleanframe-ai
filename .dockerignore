@@ -1,0 +1,22 @@
+# Both images are built from the repository root; keep everything they don't need out of the build context.
+.git
+.env
+.env.*
+**/.env.local
+**/.env.*.local
+!.env.example
+frontend/node_modules
+frontend/.next
+frontend/tsconfig.tsbuildinfo
+docs
+scripts
+models
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+backend/tests
+backend/*.db
+.venv
+cleanframe-data
+run_local.py
