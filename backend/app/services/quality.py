@@ -29,6 +29,8 @@ from app.video.source import inspect_source
 
 logger = logging.getLogger(__name__)
 
+PRESERVE_PSNR_WARN = 30.0  # dB: outside the marked areas the result should look like the original (it was re-encoded, so not identical)
+PRESERVE_SSIM_WARN = 0.9
 RESIDUAL_WARN = 0.5  # more than this share of the overlay's structure still standing
 FLICKER_WARN = 2.5  # the fill changes this many times more than its surroundings
 
@@ -41,6 +43,57 @@ def _region_masks(document: MaskDocument, tracking: dict[str, Any] | None, surve
         seq = MaskSequence(single, tracking, width=survey_w, height=survey_h, frame_count=total)
         out[region.name] = np.stack([seq.mask(int(f)) > 0 for f in frames])
     return out
+
+
+def psnr(a: np.ndarray, b: np.ndarray, keep: np.ndarray | None = None) -> float | None:
+    """Peak signal-to-noise ratio in dB over the pixels where `keep` is True (all pixels when None). None if no pixels."""
+    diff = (a.astype(np.float64) - b.astype(np.float64)) ** 2
+    values = diff[keep] if keep is not None else diff.ravel()
+    if values.size == 0:
+        return None
+    mse = float(values.mean())
+    return 99.0 if mse < 1e-10 else float(10.0 * np.log10(255.0**2 / mse))
+
+
+def ssim(a: np.ndarray, b: np.ndarray, keep: np.ndarray | None = None) -> float | None:
+    """Mean structural similarity of two grey images (11x11 Gaussian window, sigma 1.5, the usual constants) over `keep`."""
+    a, b = a.astype(np.float64), b.astype(np.float64)
+    c1, c2 = (0.01 * 255) ** 2, (0.03 * 255) ** 2
+
+    def blur(x: np.ndarray) -> np.ndarray:
+        return cv2.GaussianBlur(x, (11, 11), 1.5)
+
+    mu_a, mu_b = blur(a), blur(b)
+    var_a, var_b, cov = blur(a * a) - mu_a**2, blur(b * b) - mu_b**2, blur(a * b) - mu_a * mu_b
+    index = ((2 * mu_a * mu_b + c1) * (2 * cov + c2)) / ((mu_a**2 + mu_b**2 + c1) * (var_a + var_b + c2))
+    values = index[keep] if keep is not None else index.ravel()
+    return None if values.size == 0 else float(values.mean())
+
+
+def preservation(before: np.ndarray, after: np.ndarray, marked: np.ndarray) -> dict[str, Any]:
+    """How much of the picture outside every marked area survived. `before`/`after` are [N,H,W] grey, `marked` [N,H,W] bool.
+
+    The mask is grown a little first so the soft edge of a filled area isn't counted against the untouched picture.
+    """
+    grown = np.stack([cv2.dilate(m.astype(np.uint8), np.ones((9, 9), np.uint8)).astype(bool) for m in marked])
+    outside = ~grown
+    psnrs, ssims = [], []
+    for i in range(before.shape[0]):
+        if outside[i].sum() < 100:
+            continue
+        p, q = psnr(before[i], after[i], outside[i]), ssim(before[i], after[i], outside[i])
+        if p is not None and q is not None:
+            psnrs.append(p)
+            ssims.append(q)
+    if not psnrs:
+        return {"checked": False}
+    worst_psnr, mean_ssim = float(min(psnrs)), float(np.mean(ssims))
+    problems = []
+    if worst_psnr < PRESERVE_PSNR_WARN:
+        problems.append("parts of the video outside the marked areas changed more than encoding alone explains")
+    if mean_ssim < PRESERVE_SSIM_WARN:
+        problems.append("the picture outside the marked areas lost structure")
+    return {"checked": True, "psnr_db": round(worst_psnr, 1), "ssim": round(mean_ssim, 4), "frames": len(psnrs), "problems": problems}
 
 
 def check_result(original: Path, restored: Path, document: MaskDocument, tracking: dict[str, Any] | None, frame_count: int) -> dict[str, Any]:
@@ -75,7 +128,9 @@ def check_result(original: Path, restored: Path, document: MaskDocument, trackin
                 "verdict": "check" if problems else "clean", "problems": problems,
             }
         )  # fmt: skip
-    return {"checked": True, "regions": regions, "seconds": round(time.monotonic() - started, 2)}
+    union = np.stack(list(masks.values())).any(axis=0) if masks else np.zeros(before.grey.shape, dtype=bool)
+    outside = preservation(before.grey, after.grey, union)
+    return {"checked": True, "regions": regions, "outside": outside, "seconds": round(time.monotonic() - started, 2)}
 
 
 def _flicker(grey: np.ndarray, stack: np.ndarray) -> float | None:
@@ -105,7 +160,7 @@ def severity(report: dict[str, Any]) -> float:
     """
     if not report.get("checked"):
         return 0.25
-    total = 0.0
+    total = float(len((report.get("outside") or {}).get("problems", [])))
     for region in report["regions"]:
         if region["verdict"] != "check":
             continue
@@ -133,4 +188,6 @@ def warnings_from(report: dict[str, Any]) -> list[str]:
     for region in report["regions"]:
         if region["verdict"] == "check":
             notes.append(f"{region['name']}: {' and '.join(region['problems'])}. Look at it before you use the video.")
+    for problem in (report.get("outside") or {}).get("problems", []):
+        notes.append(f"{problem[0].upper()}{problem[1:]}. Look at it before you use the video.")
     return notes

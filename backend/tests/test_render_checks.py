@@ -202,3 +202,53 @@ def test_a_mark_that_moves_is_not_judged_on_pixels_it_did_not_cover_before() -> 
     moved = np.roll(mask, 90, axis=1)  # no overlap with the previous mask
     monitor.update(frames[1], moved)
     assert monitor.evaluated == 0
+
+
+# --- preservation outside the marked areas ---------------------------------------------------------------
+
+
+def test_psnr_and_ssim_of_identical_and_different_pictures() -> None:
+    import numpy as np
+
+    from app.services.quality import psnr, ssim
+
+    rng = np.random.default_rng(1)
+    a = rng.integers(0, 255, (64, 64)).astype(np.float32)
+    assert psnr(a, a) == 99.0
+    assert abs(ssim(a, a) - 1.0) < 1e-6
+    noisy = np.clip(a + rng.normal(0, 20, a.shape), 0, 255).astype(np.float32)
+    assert 20 < psnr(a, noisy) < 30  # sigma 20 noise is about 22 dB
+    assert ssim(a, noisy) < 0.99  # (a high-contrast random picture keeps most of its structure under noise)
+    assert ssim(a, np.full_like(a, 128)) < 0.1  # a flat patch has none of its structure
+    keep = np.zeros(a.shape, dtype=bool)
+    keep[:8] = True  # only the first rows count
+    changed = a.copy()
+    changed[32:] = 0
+    assert psnr(a, changed, keep) == 99.0  # the change is outside what is compared
+
+
+def test_preservation_ignores_the_marked_area_and_flags_damage_elsewhere() -> None:
+    import numpy as np
+
+    from app.services.quality import preservation
+
+    rng = np.random.default_rng(2)
+    before = rng.integers(0, 255, (4, 80, 80)).astype(np.float32)
+    marked = np.zeros(before.shape, dtype=bool)
+    marked[:, 30:50, 30:50] = True
+    after = before.copy()
+    after[:, 30:50, 30:50] = 128  # the filled area is allowed to differ
+    ok = preservation(before, after, marked)
+    assert ok["checked"] and ok["psnr_db"] == 99.0 and ok["problems"] == []
+    after[:, :20, :] = 0  # damage to the untouched picture
+    bad = preservation(before, after, marked)
+    assert bad["psnr_db"] < 30 and len(bad["problems"]) == 2
+
+
+def test_preservation_is_not_checked_when_the_marks_cover_everything() -> None:
+    import numpy as np
+
+    from app.services.quality import preservation
+
+    before = np.zeros((2, 40, 40), dtype=np.float32)
+    assert preservation(before, before, np.ones(before.shape, dtype=bool)) == {"checked": False}

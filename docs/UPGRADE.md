@@ -11,12 +11,13 @@ Honest ledger of the "advanced restoration upgrade" request. "Verified" means ru
 | **Export**: MP4/MOV/WebM/MKV × H.264/H.265/VP9/AV1 (valid combinations only), Original/720p/1080p/1440p/4K, Fast/Balanced/High, audio copied when the container allows | `tests/test_formats.py` renders every combination and checks codec, frame count, size, audio. AV1 needs an AV1 encoder in the server's FFmpeg; if absent the render says so |
 | UI offers the new formats | 251 frontend tests, `tsc` clean |
 | **Automatic QC retry**: after a render, residual/flicker are measured; if flagged, one more render at High, the better-scoring result is kept, a failed retry never loses the first result, and the person is told what happened (`QC_RETRY=false` turns it off; skipped when over half the time limit is used) | `tests/test_render_api.py` (6 new tests) |
+| **Preservation check**: PSNR (worst frame) and SSIM (mean) of the picture outside the marked areas against the original, warns below 30 dB / 0.9 and feeds the retry decision | `tests/test_render_checks.py` (3 new tests) |
 | Model evaluation with licences, memory, quality evidence | `docs/MODELS.md` |
 | Full backend suite before the retry change | 714 passed, 1 skipped (SQLite) |
 
 ## Not done in this pass
 - Moving, resizing and animated-mark masks refined to exact outlines inside the app's detector. The exact-outline method (median gradients over time, integrated, high-pass thresholds) worked on individual clips by hand; it is not wired into `app/detect`.
-- Perceptual metrics (LPIPS/SSIM/PSNR against the original outside the mask). The existing QC uses residual structure and flicker only; LPIPS needs a model download.
+- LPIPS (a learned perceptual metric; needs a model download). PSNR and SSIM against the original *outside* the marked areas are now part of the QC (below).
 - Automatic strategy selection beyond `auto` (overlay inversion → frame reconstruction → LaMa).
 - ProPainter/E2FGVI adapters (non-commercial licences; interface is ready, see `docs/MODELS.md`).
 
