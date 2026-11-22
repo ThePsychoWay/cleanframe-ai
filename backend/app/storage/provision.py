@@ -1,7 +1,8 @@
 """Sets up what the bucket itself should enforce:  python -m app.storage.provision
 
-Run it once per environment (and again after changing retention). It never creates the bucket; production buckets are
-provisioned by whoever owns the account. The storage key needs permission to set lifecycle configuration.
+Run it once per environment (and again after changing retention). By default it never creates the bucket; production
+buckets are provisioned by whoever owns the account. `--create-bucket` creates a missing bucket first (for a self-hosted
+MinIO that starts empty). The storage key needs permission to set lifecycle configuration.
 """
 
 from __future__ import annotations
@@ -26,8 +27,11 @@ def provision(storage: ObjectStorage | None = None, settings: Settings | None = 
     return expiry_days(settings)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
     try:
+        if "--create-bucket" in args:
+            get_storage().ensure_bucket()
         days = provision()
     except StorageError as error:
         print(f"storage provisioning failed: {error}", file=sys.stderr)
