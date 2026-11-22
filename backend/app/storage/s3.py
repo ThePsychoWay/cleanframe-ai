@@ -47,6 +47,10 @@ class ObjectStorage(ABC):
     @abstractmethod
     def lifecycle_rules(self) -> list[dict]: ...
 
+    def apply_cors(self, origins: list[str]) -> None:
+        """Let browsers at these origins upload parts to and read from the bucket. Only meaningful for S3 storage."""
+        raise StorageError("This storage does not use browser CORS rules.")
+
     @abstractmethod
     def create_multipart_upload(self, key: str, content_type: str) -> str: ...
 
@@ -89,7 +93,7 @@ class S3Storage(ObjectStorage):
             "aws_access_key_id": settings.storage_access_key or None,
             "aws_secret_access_key": settings.storage_secret_key or None,
             "region_name": settings.storage_region,
-            "config": Config(signature_version="s3v4", s3={"addressing_style": "path"}, retries={"max_attempts": 3}),
+            "config": Config(signature_version="s3v4", s3={"addressing_style": settings.storage_addressing_style}, retries={"max_attempts": 3}),
         }
         internal = settings.storage_endpoint or None
         public = settings.storage_public_endpoint or internal
@@ -138,6 +142,22 @@ class S3Storage(ObjectStorage):
         except ClientError as error:
             raise StorageError("The bucket's lifecycle rules couldn't be set (does the storage key allow it?).") from error
         logger.info("storage lifecycle rules set", extra={"expire_days": expire_after_days, "abort_days": abort_uploads_after_days})
+
+    def apply_cors(self, origins: list[str]) -> None:
+        """The browser sends upload parts straight to the bucket (presigned PUT) and plays results from it, so the bucket has
+        to answer for the website's origin, and the upload needs to read the ETag header of each part."""
+        rule = {
+            "AllowedOrigins": origins,
+            "AllowedMethods": ["GET", "HEAD", "PUT"],
+            "AllowedHeaders": ["*"],
+            "ExposeHeaders": ["ETag"],
+            "MaxAgeSeconds": 3600,
+        }
+        try:
+            self._client.put_bucket_cors(Bucket=self._bucket, CORSConfiguration={"CORSRules": [rule]})
+        except ClientError as error:
+            raise StorageError("The bucket's CORS rules couldn't be set (does the storage key allow it?).") from error
+        logger.info("storage CORS rules set", extra={"origins": origins})
 
     def lifecycle_rules(self) -> list[dict]:
         try:

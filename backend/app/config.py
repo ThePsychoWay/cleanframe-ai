@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     storage_secret_key: str = ""
     storage_bucket: str = "cleanframe"
     storage_region: str = "us-east-1"
+    # How bucket names appear in URLs: path (host/bucket/key; MinIO) or virtual (bucket.host/key; Railway buckets, AWS S3).
+    storage_addressing_style: Literal["path", "virtual"] = "path"
     # Backstop for files nothing else removed (a crashed worker, an abandoned upload): the bucket expires them this many
     # days after the retention period ends. Applied by `python -m app.storage.provision`.
     storage_lifecycle_margin_days: int = Field(default=2, ge=1)
