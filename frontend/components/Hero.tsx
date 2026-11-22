@@ -24,7 +24,7 @@ export function Hero() {
             See how it works
           </a>
         </div>
-        <p className="mt-5 text-sm text-faint">MP4, MOV, WebM and AVI · 720p to 4K · Your original video stays unchanged</p>
+        <p className="mt-5 text-sm text-faint">MP4, MOV, M4V, WebM, MKV and AVI · 720p to 4K · Your original video stays unchanged</p>
       </div>
 
       <SampleCompare className="mx-auto w-full max-w-[22rem] lg:max-w-none" />

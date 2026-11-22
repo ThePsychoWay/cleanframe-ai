@@ -19,6 +19,7 @@ from types import TracebackType
 import numpy as np
 
 from app.config import get_settings
+from app.video.containers import CONTAINERS, container_args
 from app.video.encoders import CODECS, CONTAINER_CODECS, Encoder, choose_encoder
 from app.video.ffmpeg import FFmpegProcess, ProcessingError
 from app.video.probe import demuxer_args
@@ -27,7 +28,6 @@ from app.video.source import ColorSpec, SourceMedia
 logger = logging.getLogger(__name__)
 
 QUALITIES = ("fast", "balanced", "high")
-CONTAINERS = ("mp4", "webm")
 OUTPUT_HEIGHTS = (None, 2160, 1440, 1080, 720)  # None keeps the original size; the others are caps, never enlargements
 
 
@@ -158,7 +158,7 @@ class FrameWriter:
         tags = ["-colorspace", color.matrix, "-color_primaries", color.primaries, "-color_trc", color.transfer, "-color_range", color.range]
         self.encoder = settings.choose()
         codec = list(self.encoder.args)
-        container = ["-f", "webm"] if settings.container == "webm" else ["-movflags", "+faststart", "-f", "mp4"]
+        container = container_args(settings.container)
         self._ffmpeg = FFmpegProcess(
             [
                 "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{width}x{height}", "-framerate", frame_rate,

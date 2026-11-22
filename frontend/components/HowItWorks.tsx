@@ -1,7 +1,7 @@
 const STEPS = [
   {
     title: "Upload",
-    body: "Drop in an MP4, MOV, WebM or AVI (720p up to 4K) that you own or have permission to edit. Resolution, frame rate and duration are read first, so you know what you're working with.",
+    body: "Drop in an MP4, MOV, M4V, WebM, MKV or AVI (720p up to 4K) that you own or have permission to edit. Resolution, frame rate and duration are read first, so you know what you're working with.",
   },
   {
     title: "Select",

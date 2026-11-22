@@ -5,8 +5,8 @@
  * re-validates the real file contents; never treat these checks as security.
  */
 
-export const ACCEPTED_EXTENSIONS = [".mp4", ".mov", ".webm", ".avi"] as const;
-export const ACCEPT_ATTRIBUTE = ".mp4,.mov,.webm,.avi,video/mp4,video/quicktime,video/webm,video/x-msvideo,video/avi";
+export const ACCEPTED_EXTENSIONS = [".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi"] as const;
+export const ACCEPT_ATTRIBUTE = ".mp4,.m4v,.mov,.webm,.mkv,.avi,video/mp4,video/x-m4v,video/quicktime,video/webm,video/x-matroska,video/x-msvideo,video/avi";
 
 // Same as the server's default (MAX_UPLOAD_SIZE); set NEXT_PUBLIC_MAX_UPLOAD_SIZE to match a different server limit.
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024;
@@ -29,7 +29,7 @@ export function validateVideoFile(
   if (!hasAcceptedExtension || mimeLooksWrong) {
     return {
       ok: false,
-      message: "Unsupported video format. Please upload an MP4, MOV, WebM or AVI file.",
+      message: "Unsupported video format. Please upload an MP4, MOV, M4V, WebM, MKV or AVI file.",
     };
   }
   if (file.size <= 0) {

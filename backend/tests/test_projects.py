@@ -80,9 +80,9 @@ def test_completing_twice_is_harmless(user_client: TestClient, videos: dict[str,
 
 
 def test_unsupported_extension_is_rejected_up_front(user_client: TestClient) -> None:
-    response = user_client.post("/api/projects", json={"filename": "clip.mkv", "size_bytes": 1000})
+    response = user_client.post("/api/projects", json={"filename": "clip.flv", "size_bytes": 1000})
     assert response.status_code == 422
-    assert response.json()["detail"] == "Unsupported video format. Please upload an MP4, MOV, WebM or AVI file."
+    assert response.json()["detail"] == "Unsupported video format. Please upload an MP4, MOV, M4V, WebM, MKV or AVI file."
 
 
 @pytest.mark.parametrize("size", [0, -5])

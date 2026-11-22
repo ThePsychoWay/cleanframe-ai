@@ -97,6 +97,34 @@ def _flicker(grey: np.ndarray, stack: np.ndarray) -> float | None:
     return float(inner / max(outer, 1.0))  # the floor keeps a still picture's compression noise from inflating the ratio
 
 
+def severity(report: dict[str, Any]) -> float:
+    """One number for how bad a check report is, so two renders of the same clip can be compared. 0 = nothing flagged.
+
+    A check that did not run is worse than a clean one (nothing is known) but better than a flagged result, so a retry never
+    replaces a result that was proven clean with one that could not be checked.
+    """
+    if not report.get("checked"):
+        return 0.25
+    total = 0.0
+    for region in report["regions"]:
+        if region["verdict"] != "check":
+            continue
+        residual, flicker = region.get("residual"), region.get("flicker")
+        total += 1.0
+        if residual is not None:
+            total += max(0.0, residual - RESIDUAL_WARN)
+        if flicker is not None:
+            total += max(0.0, flicker - FLICKER_WARN) / FLICKER_WARN
+    return total
+
+
+def retry_quality(current: str, report: dict[str, Any]) -> str | None:
+    """The quality to render again at, or None when a retry would not change anything or nothing was flagged."""
+    if current == "high" or not report.get("checked"):
+        return None
+    return "high" if any(r["verdict"] == "check" for r in report["regions"]) else None
+
+
 def warnings_from(report: dict[str, Any]) -> list[str]:
     """Plain sentences for the person. Empty when everything checked out."""
     if not report.get("checked"):

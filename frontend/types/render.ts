@@ -12,7 +12,7 @@ export interface Stage {
 
 export interface RenderSettings {
   quality: "fast" | "balanced" | "high";
-  container: "mp4" | "webm";
+  container: "mp4" | "mov" | "webm" | "mkv";
   /** Shorter side of the picture. null keeps the original size. The server only ever scales down. */
   output_height: 720 | 1080 | 1440 | 2160 | null;
   keep_audio: boolean;
@@ -29,7 +29,7 @@ export interface RenderResult {
   frames: number;
   fps: number;
   container: string;
-  /** What the picture was encoded with ("h264", "hevc", "vp9") and whether the GPU encoder did it. Older results may lack them. */
+  /** What the picture was encoded with ("h264", "hevc", "vp9", "av1") and whether the GPU encoder did it. Older results may lack them. */
   codec?: string;
   encoder?: string;
   hardware_encoder?: boolean;

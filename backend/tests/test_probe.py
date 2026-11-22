@@ -63,7 +63,8 @@ def test_cover_art_is_not_mistaken_for_the_video_track() -> None:
 @pytest.mark.parametrize(
     ("data", "ext", "limits", "expected"),
     [
-        (probe(), ".mkv", {}, "Unsupported video format"),
+        (probe(), ".flv", {}, "Unsupported video format"),
+        (probe(), ".mkv", {}, "don't match its .mkv extension"),
         (probe(), ".webm", {}, "don't match its .webm extension"),
         (probe(codec_name="gif"), ".mp4", {}, "uses the gif codec"),
         (probe(width=0), ".mp4", {}, "couldn't read this video"),

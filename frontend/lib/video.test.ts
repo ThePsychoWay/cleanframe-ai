@@ -5,17 +5,17 @@ import { aspectRatioLabel, formatBytes, formatDuration, readVideoMetadata, valid
 const MB = 1024 * 1024;
 
 describe("validateVideoFile", () => {
-  it("accepts mp4, mov, webm and avi", () => {
-    for (const name of ["a.mp4", "b.MOV", "c.webm", "d.avi"]) {
+  it("accepts mp4, m4v, mov, webm, mkv and avi", () => {
+    for (const name of ["a.mp4", "b.MOV", "c.webm", "d.avi", "e.mkv", "f.M4V"]) {
       expect(validateVideoFile({ name, size: MB, type: "" }, 10 * MB)).toEqual({ ok: true });
     }
   });
 
   it("rejects unsupported extensions with the spec'd message", () => {
-    const result = validateVideoFile({ name: "clip.mkv", size: MB, type: "video/x-matroska" }, 10 * MB);
+    const result = validateVideoFile({ name: "clip.flv", size: MB, type: "video/x-flv" }, 10 * MB);
     expect(result).toEqual({
       ok: false,
-      message: "Unsupported video format. Please upload an MP4, MOV, WebM or AVI file.",
+      message: "Unsupported video format. Please upload an MP4, MOV, M4V, WebM, MKV or AVI file.",
     });
   });
 

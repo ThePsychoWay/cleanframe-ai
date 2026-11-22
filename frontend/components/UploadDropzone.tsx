@@ -228,7 +228,7 @@ export function UploadDropzone({ onProjectsChanged }: UploadDropzoneProps) {
           </h1>
           <p className="mt-2 text-dim">or browse files</p>
           <span className="btn btn-primary mt-7 !h-12 !px-6">Choose video</span>
-          <p className="mt-6 text-sm text-dim">MP4, MOV, WebM or AVI</p>
+          <p className="mt-6 text-sm text-dim">MP4, MOV, M4V, WebM, MKV or AVI</p>
           <p className="mt-1 text-sm text-dim">{SUPPORTED_RESOLUTIONS_TEXT}</p>
           <p className="mt-1 text-xs text-faint">Up to {maxLabel} per file</p>
         </label>

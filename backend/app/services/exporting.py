@@ -44,6 +44,7 @@ from app.services.rendering import CONTENT_TYPES, Heartbeat, _now
 from app.storage.keys import output_key
 from app.storage.s3 import ObjectStorage, StorageError, get_storage
 from app.video.audio import AudioAction, plan_audio
+from app.video.containers import REENCODE_AUDIO, container_args
 from app.video.encoders import choose_encoder
 from app.video.ffmpeg import FFmpegProcess, ProcessingCancelled, ProcessingError, safe_unlink
 from app.video.frames import output_size
@@ -77,17 +78,18 @@ def _transcode(source: Path, destination: Path, *, settings: dict[str, Any], on_
     elif action is AudioAction.COPIED:
         audio_args = ["-map", "0:a", "-c:a", "copy"]
     else:
-        audio_args = ["-map", "0:a", "-c:a", "aac" if container == "mp4" else "libopus", "-b:a", "192k" if container == "mp4" else "160k"]
+        audio_encoder, audio_bitrate, _ = REENCODE_AUDIO[container]
+        audio_args = ["-map", "0:a", "-c:a", audio_encoder, "-b:a", audio_bitrate]
     scale = (
         f"scale={out_width}:{out_height}:flags=lanczos+accurate_rnd+full_chroma_int:"
         f"in_range={color.range}:out_color_matrix={color.scale_matrix}:out_range={color.range},format=yuv420p"
     )
     tags = ["-colorspace", color.matrix, "-color_primaries", color.primaries, "-color_trc", color.transfer, "-color_range", color.range]
-    container_args = ["-movflags", "+faststart", "-f", "mp4"] if container == "mp4" else ["-f", "webm"]
+    container_opts = container_args(container)
     process = FFmpegProcess(
         [
             "-i", f"file:{source}", "-map", "0:v:0", "-vf", scale, "-fps_mode", "passthrough",
-            *encoder.args, *tags, *audio_args, "-map_metadata", "-1", *container_args,
+            *encoder.args, *tags, *audio_args, "-map_metadata", "-1", *container_opts,
             "-progress", "pipe:1", "-nostats", f"file:{destination}",
         ],
         stdout=True,

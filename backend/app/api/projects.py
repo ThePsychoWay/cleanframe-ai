@@ -50,8 +50,11 @@ from app.workers.tasks import EnqueueError, enqueue_analysis
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
-CONTENT_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".avi": "video/x-msvideo"}
-UNSUPPORTED_FORMAT = "Unsupported video format. Please upload an MP4, MOV, WebM or AVI file."
+CONTENT_TYPES = {
+    ".mp4": "video/mp4", ".m4v": "video/x-m4v", ".mov": "video/quicktime", ".webm": "video/webm",
+    ".mkv": "video/x-matroska", ".avi": "video/x-msvideo",
+}
+UNSUPPORTED_FORMAT = "Unsupported video format. Please upload an MP4, MOV, M4V, WebM, MKV or AVI file."
 NOT_FOUND = "We couldn't find that project."
 EXPIRED_MESSAGE = "This project has expired and its files were deleted. Upload the video again to start a new one."
 LIST_LIMIT = 50

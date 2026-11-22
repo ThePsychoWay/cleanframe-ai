@@ -13,20 +13,23 @@ import subprocess
 import threading
 from dataclasses import dataclass
 
+from app.video.containers import CONTAINER_VIDEO_CODECS
 from app.video.ffmpeg import ffmpeg_command
 
 logger = logging.getLogger(__name__)
 
-CODECS = ("h264", "hevc", "vp9")
+CODECS = ("h264", "hevc", "vp9", "av1")
 QUALITIES = ("fast", "balanced", "high")
-CONTAINER_CODECS = {"mp4": ("h264", "hevc"), "webm": ("vp9",)}
-DEFAULT_CODEC = {"mp4": "h264", "webm": "vp9"}
-LABELS = {"h264": "H.264", "hevc": "H.265 (HEVC)", "vp9": "VP9"}
+CONTAINER_CODECS = CONTAINER_VIDEO_CODECS
+DEFAULT_CODEC = {container: codecs[0] for container, codecs in CONTAINER_VIDEO_CODECS.items()}
+LABELS = {"h264": "H.264", "hevc": "H.265 (HEVC)", "vp9": "VP9", "av1": "AV1"}
 
 # quality -> (preset, constant-quality value); lower value = better picture and a bigger file.
 _X264 = {"fast": ("veryfast", 23), "balanced": ("fast", 20), "high": ("medium", 17)}
 _X265 = {"fast": ("veryfast", 27), "balanced": ("fast", 24), "high": ("medium", 21)}
 _VP9 = {"fast": (34, 5), "balanced": (31, 3), "high": (28, 1)}  # (crf, cpu-used)
+_SVTAV1 = {"fast": (35, 10), "balanced": (30, 8), "high": (26, 6)}  # (crf, preset): a lower crf is a better picture
+_LIBAOM = {"fast": (34, 7), "balanced": (30, 6), "high": (26, 4)}  # (crf, cpu-used)
 _NVENC_PRESET = {"fast": "p3", "balanced": "p5", "high": "p7"}
 _NVENC_CQ = {"h264": {"fast": 25, "balanced": 21, "high": 18}, "hevc": {"fast": 28, "balanced": 24, "high": 21}}
 
@@ -37,7 +40,7 @@ _cache_lock = threading.Lock()
 
 @dataclass(frozen=True)
 class Encoder:
-    codec: str  # h264 | hevc | vp9
+    codec: str  # h264 | hevc | vp9 | av1
     name: str  # FFmpeg's encoder name
     hardware: bool
     args: tuple[str, ...]
@@ -84,6 +87,16 @@ def choose_encoder(container: str, codec: str | None, quality: str, preference: 
     if quality not in QUALITIES:
         raise ValueError(f"quality must be one of {QUALITIES}")
 
+    if codec == "av1":
+        listed = _listed_encoders()
+        if "libsvtav1" in listed:
+            crf, preset = _SVTAV1[quality]
+            return Encoder("av1", "libsvtav1", False, ("-c:v", "libsvtav1", "-crf", str(crf), "-preset", str(preset)))
+        if "libaom-av1" in listed:
+            crf, cpu = _LIBAOM[quality]
+            return Encoder("av1", "libaom-av1", False, ("-c:v", "libaom-av1", "-b:v", "0", "-crf", str(crf), "-cpu-used", str(cpu), "-row-mt", "1"))
+        raise ValueError("This server's FFmpeg has no AV1 encoder.")
+
     if codec == "vp9":
         crf, cpu = _VP9[quality]
         return Encoder("vp9", "libvpx-vp9", False, ("-c:v", "libvpx-vp9", "-b:v", "0", "-crf", str(crf), "-row-mt", "1", "-deadline", "good", "-cpu-used", str(cpu)))
@@ -122,5 +135,7 @@ def _listed_encoders() -> set[str]:
 def codec_available(codec: str) -> bool:
     """Whether FFmpeg on this machine has an encoder for the codec (a CPU one, or NVENC that passed its test)."""
     listed = _listed_encoders()
+    if codec == "av1":
+        return "libsvtav1" in listed or "libaom-av1" in listed
     cpu = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9"}[codec]
     return cpu in listed or nvenc_works(codec)

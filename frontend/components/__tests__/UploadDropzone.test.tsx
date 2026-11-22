@@ -36,7 +36,7 @@ describe("upload dropzone", () => {
     expect(screen.getByRole("heading", { name: "Drop your video here" })).toBeInTheDocument();
     expect(screen.getByText(OWNERSHIP_NOTICE)).toBeInTheDocument();
     expect(screen.getByText(PRIVACY_NOTICE)).toBeInTheDocument();
-    expect(screen.getByText("MP4, MOV, WebM or AVI")).toBeInTheDocument();
+    expect(screen.getByText("MP4, MOV, M4V, WebM, MKV or AVI")).toBeInTheDocument();
     expect(screen.getByText("Supported resolutions: 720p, 1080p, 1440p and 4K.")).toBeInTheDocument();
     expect(screen.getByText("or browse files")).toBeInTheDocument();
     expect(screen.getByText("Choose video")).toBeInTheDocument();

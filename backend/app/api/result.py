@@ -14,6 +14,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from app.video.containers import file_extension
 from app.api.projects import Db, Storage, _owned_project
 from app.auth.deps import CurrentUser
 from app.models import Job, Project
@@ -37,7 +38,7 @@ def download_name(project_name: str, container: str) -> str:
     ascii_only = unicodedata.normalize("NFKD", project_name).encode("ascii", "ignore").decode()
     stem = _UNSAFE.sub("", ascii_only).strip(" .-_")
     stem = re.sub(r"\s+", " ", stem)[:80].strip(" .-_") or "video"
-    extension = container if container in ("mp4", "webm") else "mp4"
+    extension = file_extension(container)
     return f"{stem}-restored.{extension}"
 
 

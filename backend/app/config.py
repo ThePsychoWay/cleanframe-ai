@@ -128,6 +128,9 @@ class Settings(BaseSettings):
 
     # Rendering (the long job). The worker stops at the soft limit; the hard limit is 5 minutes later.
     render_time_limit_seconds: int = Field(default=7200, gt=0)
+    # When the after-render check finds the mark still showing or the fill flickering, render once more at the highest
+    # quality and keep whichever of the two scored better. Only while less than half the render time limit is used.
+    qc_retry: bool = True
     # Which queue renders go to: "auto" sends engines that need a GPU (local, video) to `gpu` and the rest to `cpu`.
     # A machine without a GPU can run one worker for both: `celery ... worker -Q cpu,gpu`.
     render_queue: Literal["auto", "cpu", "gpu"] = "auto"

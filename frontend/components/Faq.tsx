@@ -3,7 +3,7 @@ import { OWNERSHIP_NOTICE } from "@/lib/site";
 const FAQS = [
   {
     q: "What video formats are supported?",
-    a: "MP4, MOV, WebM and AVI, at 720p, 1080p, 1440p or 4K. File size and length limits apply, and you'll see them before you upload.",
+    a: "MP4, MOV, M4V, WebM, MKV and AVI, at 720p, 1080p, 1440p or 4K. File size and length limits apply, and you'll see them before you upload.",
   },
   {
     q: "How long does processing take?",

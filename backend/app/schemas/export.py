@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
+from app.video.containers import CONTAINER_VIDEO_CODECS
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
@@ -13,13 +14,13 @@ class ExportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     height: Literal[720, 1080, 1440, 2160] | None = None
-    container: Literal["mp4", "webm"] = "mp4"
-    codec: Literal["h264", "hevc", "vp9"] | None = None
+    container: Literal["mp4", "mov", "webm", "mkv"] = "mp4"
+    codec: Literal["h264", "hevc", "vp9", "av1"] | None = None
     quality: Literal["fast", "balanced", "high"] = "balanced"
 
     @model_validator(mode="after")
     def _codec_fits_container(self) -> ExportRequest:
-        allowed = {"mp4": ("h264", "hevc"), "webm": ("vp9",)}[self.container]
+        allowed = CONTAINER_VIDEO_CODECS[self.container]
         if self.codec is not None and self.codec not in allowed:
             raise ValueError(f"{self.codec.upper()} can't be stored in {self.container.upper()}.")
         return self
@@ -33,8 +34,8 @@ class SizeOption(BaseModel):
 
 
 class FormatOption(BaseModel):
-    container: Literal["mp4", "webm"]
-    codec: Literal["h264", "hevc", "vp9"]
+    container: Literal["mp4", "mov", "webm", "mkv"]
+    codec: Literal["h264", "hevc", "vp9", "av1"]
     label: str
 
 

@@ -2,7 +2,7 @@
 
 The picture is rebuilt separately and has no sound. Here the original soundtrack is combined with it. It is copied
 bit for bit (no re-encoding, no quality loss) whenever the target container can hold it; otherwise it is converted
-once, to AAC for MP4 or Opus for WebM, and the result says so. The soundtrack keeps its timing relative to the
+once (AAC for MP4 and MOV, Opus for WebM and MKV), and the result says so. The soundtrack keeps its timing relative to the
 picture, including any start offset the original had: both inputs keep their own timestamps and are
 joined without shifting either (checked against audio that starts late and audio that starts early).
 """
@@ -13,17 +13,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from app.video.containers import COPYABLE_AUDIO, REENCODE_AUDIO, container_args
 from app.video.ffmpeg import run_ffmpeg
 from app.video.probe import demuxer_args
 from app.video.source import SourceMedia
 
 MUX_TIMEOUT_SECONDS = 600
-# Audio codecs each container can carry unchanged.
-COPYABLE = {
-    "mp4": frozenset({"aac", "mp3", "ac3", "eac3", "opus", "flac", "alac"}),
-    "webm": frozenset({"opus", "vorbis"}),
-}
-_REENCODE = {"mp4": ("aac", "192k"), "webm": ("libopus", "160k")}
+COPYABLE = COPYABLE_AUDIO
 
 
 class AudioAction(StrEnum):
@@ -46,7 +42,7 @@ def plan_audio(media: SourceMedia, container: str, keep_audio: bool) -> tuple[Au
         return AudioAction.REMOVED, None
     if all(stream.codec in COPYABLE[container] for stream in media.audio):
         return AudioAction.COPIED, media.audio[0].codec
-    return AudioAction.CONVERTED, "aac" if container == "mp4" else "opus"
+    return AudioAction.CONVERTED, REENCODE_AUDIO[container][2]
 
 
 def mux_audio(video_only: Path, source: Path, destination: Path, media: SourceMedia, *, container: str, keep_audio: bool) -> AudioResult:
@@ -59,7 +55,7 @@ def mux_audio(video_only: Path, source: Path, destination: Path, media: SourceMe
     if action is AudioAction.COPIED:
         audio_args = ["-c:a", "copy"]
     else:
-        encoder, bitrate = _REENCODE[container]
+        encoder, bitrate, _ = REENCODE_AUDIO[container]
         audio_args = ["-c:a", encoder, "-b:a", bitrate]
     run_ffmpeg(
         [
@@ -79,7 +75,7 @@ def mux_audio(video_only: Path, source: Path, destination: Path, media: SourceMe
 
 
 def _container_args(container: str) -> list[str]:
-    return ["-movflags", "+faststart", "-f", "mp4"] if container == "mp4" else ["-f", "webm"]
+    return container_args(container)
 
 
 __all__ = ["AudioAction", "AudioResult", "mux_audio", "plan_audio"]

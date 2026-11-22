@@ -52,7 +52,7 @@ SURVEY_MIN_DIFFERENCE = 2.0  # mean level difference below which two frames coun
 @dataclass(frozen=True)
 class RenderSettings:
     quality: str = "balanced"  # fast | balanced | high: encoder effort and the engine's quality level
-    container: str = "mp4"  # mp4 | webm
+    container: str = "mp4"  # mp4 | mov | webm | mkv
     output_height: int | None = None  # None = original size; 2160, 1440, 1080 or 720 = scale down so the shorter side is at most that
     codec: str | None = None  # h264 | hevc (MP4), vp9 (WebM); None = H.264 in MP4, VP9 in WebM
     keep_audio: bool = True

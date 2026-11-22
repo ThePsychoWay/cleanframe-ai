@@ -2,8 +2,8 @@
 
 import type { RenderSettings } from "./render";
 
-export type ExportContainer = "mp4" | "webm";
-export type ExportCodec = "h264" | "hevc" | "vp9";
+export type ExportContainer = "mp4" | "mov" | "webm" | "mkv";
+export type ExportCodec = "h264" | "hevc" | "vp9" | "av1";
 
 export interface ExportRequest {
   /** Shorter side of the new picture; null keeps the finished video's size and only changes the format. */

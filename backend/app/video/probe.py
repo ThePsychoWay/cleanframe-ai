@@ -20,9 +20,11 @@ CONTAINERS_BY_EXTENSION: dict[str, frozenset[str]] = {
     ".mp4": frozenset({"mov", "mp4"}),
     ".mov": frozenset({"mov", "mp4"}),
     ".webm": frozenset({"matroska", "webm"}),
+    ".mkv": frozenset({"matroska", "webm"}),
+    ".m4v": frozenset({"mov", "mp4"}),
     ".avi": frozenset({"avi"}),
 }
-SUPPORTED_FORMATS_TEXT = "an MP4, MOV, WebM or AVI file"
+SUPPORTED_FORMATS_TEXT = "an MP4, MOV, M4V, WebM, MKV or AVI file"
 MAX_FPS = 120.0
 FFPROBE_TIMEOUT_SECONDS = 30
 
@@ -87,7 +89,7 @@ UNREADABLE_MESSAGE = _UNREADABLE
 
 
 def demuxer_args(path: Path) -> list[str]:
-    """`-f <demuxer>` for FFmpeg/ffprobe input options. Raises VideoRejected for a file that isn't MP4, MOV, WebM or AVI."""
+    """`-f <demuxer>` for FFmpeg/ffprobe input options. Raises VideoRejected for a file that isn't MP4, MOV, M4V, WebM, MKV or AVI."""
     demuxer = sniff_demuxer(path)
     if demuxer is None:
         raise VideoRejected(_UNREADABLE)
@@ -177,7 +179,7 @@ def parse_video_info(probe: dict[str, Any], extension: str, *, max_duration: flo
     matching = names & allowed_containers
     if not matching:
         raise VideoRejected(
-            f"This file's contents don't match its {ext} extension. Please upload a real MP4, MOV, WebM or AVI video."
+            f"This file's contents don't match its {ext} extension. Please upload a real MP4, MOV, M4V, WebM, MKV or AVI video."
         )
     container = sorted(matching)[0]
 

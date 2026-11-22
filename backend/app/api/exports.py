@@ -23,7 +23,7 @@ from app.schemas.export import ExportJobOut, ExportList, ExportOptions, ExportRe
 from app.schemas.result import ExportResponse
 from app.services.exporting import export_filename_suffix
 from app.services.rendering import expire_if_lost
-from app.video.encoders import LABELS, choose_encoder, codec_available
+from app.video.encoders import DEFAULT_CODEC, LABELS, choose_encoder, codec_available
 from app.video.frames import output_size
 from app.video.resolution import resolution_class, target_label, valid_targets
 from app.workers.tasks import EnqueueError, enqueue_export
@@ -32,7 +32,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects", tags=["exports"])
 
 MAX_EXPORTS_PER_PROJECT = 12
-FORMATS = (("mp4", "h264"), ("mp4", "hevc"), ("webm", "vp9"))
+FORMATS = (
+    ("mp4", "h264"), ("mp4", "hevc"), ("mp4", "av1"),
+    ("mov", "h264"), ("mov", "hevc"),
+    ("webm", "vp9"), ("webm", "av1"),
+    ("mkv", "h264"), ("mkv", "hevc"), ("mkv", "vp9"), ("mkv", "av1"),
+)
 
 
 def _out(job: Job) -> ExportJobOut:
@@ -102,7 +107,7 @@ def create_export(project_id: uuid.UUID, body: ExportRequest, user: CurrentUser,
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"The finished video is {out_w}×{out_h}; it can only be exported at a smaller size, not enlarged.",
         )
-    codec = body.codec or {"mp4": "h264", "webm": "vp9"}[body.container]
+    codec = body.codec or DEFAULT_CODEC[body.container]
     if not codec_available(codec):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"This server can't encode {LABELS[codec]}.")
     if body.height is None and codec == result.get("codec") and body.container == result.get("container"):

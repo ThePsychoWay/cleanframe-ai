@@ -625,3 +625,104 @@ def test_the_stage_list_names_the_measuring_step_only_for_the_engine_that_has_on
     now = stages("auto", "measuring")
     assert now["preparing"] == "done" and now["measuring"] == "active" and now["reconstructing"] == "pending"
     assert stages("dev", "reconstructing")["measuring"] == "skipped"
+
+
+# --- the automatic retry after a flagged check ---------------------------------------------------------
+
+
+def _report(verdict: str, residual: float = 0.1, flicker: float = 1.0) -> dict[str, Any]:
+    problems = [] if verdict == "clean" else ["part of the overlay may still be visible"]
+    return {"checked": True, "regions": [{"name": "Logo", "verdict": verdict, "residual": residual, "flicker": flicker, "problems": problems}]}
+
+
+def test_severity_orders_reports_and_never_prefers_an_unchecked_result_to_a_clean_one() -> None:
+    from app.services.quality import retry_quality, severity
+
+    assert severity(_report("clean")) == 0
+    assert severity(_report("check", residual=0.9)) > severity(_report("check", residual=0.6)) > severity(_report("clean"))
+    assert severity({"checked": False, "regions": []}) > severity(_report("clean"))
+    assert severity({"checked": False, "regions": []}) < severity(_report("check", residual=0.6))
+    assert retry_quality("balanced", _report("check")) == "high" and retry_quality("fast", _report("check")) == "high"
+    assert retry_quality("high", _report("check")) is None  # nothing stronger to try
+    assert retry_quality("balanced", _report("clean")) is None
+    assert retry_quality("balanced", {"checked": False, "regions": []}) is None
+
+
+def _scripted_quality(monkeypatch: pytest.MonkeyPatch, reports: list[dict[str, Any]]) -> list[str]:
+    calls: list[str] = []
+    queue = list(reports)
+
+    def fake(original: Path, restored: Path, document: Any, tracking: Any, frames: int) -> dict[str, Any]:  # noqa: ANN401
+        calls.append(restored.name)
+        return queue.pop(0)
+
+    monkeypatch.setattr(rendering, "_quality", fake)
+    return calls
+
+
+def test_a_flagged_render_is_rendered_again_and_the_better_one_is_kept(
+    user_client: TestClient, marked: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _scripted_quality(monkeypatch, [_report("check", residual=0.8), _report("clean")])
+    job = render(user_client, marked, quality="balanced").json()["job"]
+    assert job["status"] == "completed", job["error"]
+    assert len(calls) == 2 and len(set(calls)) == 2
+    assert any("rendered again at high quality" in w and "second render checked better" in w for w in job["warnings"])
+    assert job["result"]["quality"]["regions"][0]["verdict"] == "clean"
+    assert not any("Look at it before" in w for w in job["warnings"])
+
+
+def test_a_retry_that_checks_worse_keeps_the_first_render(
+    user_client: TestClient, marked: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _scripted_quality(monkeypatch, [_report("check", residual=0.6), _report("check", residual=0.95)])
+    job = render(user_client, marked, quality="balanced").json()["job"]
+    assert job["status"] == "completed"
+    assert any("did not check better, so the first one was kept" in w for w in job["warnings"])
+    assert job["result"]["quality"]["regions"][0]["residual"] == 0.6
+    assert any("Look at it before" in w for w in job["warnings"])  # the person still hears the first result was flagged
+
+
+def test_a_clean_render_and_a_high_quality_render_are_not_repeated(
+    user_client: TestClient, marked: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _scripted_quality(monkeypatch, [_report("clean")])
+    assert render(user_client, marked, quality="balanced").json()["job"]["status"] == "completed"
+    assert len(calls) == 1
+    calls = _scripted_quality(monkeypatch, [_report("check", residual=0.9)])
+    job = render(user_client, marked, quality="high").json()["job"]
+    assert len(calls) == 1 and any("Look at it before" in w for w in job["warnings"])
+
+
+def test_a_failing_retry_never_loses_the_first_result(
+    user_client: TestClient, marked: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = rendering.render_restored_video
+    runs = {"n": 0}
+
+    def flaky(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        runs["n"] += 1
+        if runs["n"] == 2:
+            raise RuntimeError("boom")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rendering, "render_restored_video", flaky)
+    _scripted_quality(monkeypatch, [_report("check", residual=0.7)])
+    job = render(user_client, marked, quality="balanced").json()["job"]
+    assert job["status"] == "completed" and runs["n"] == 2
+    assert any("failed, so the first one was kept" in w for w in job["warnings"])
+    assert len(stored_outputs()) == 1
+
+
+def test_the_retry_can_be_switched_off(user_client: TestClient, marked: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("QC_RETRY", "false")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        calls = _scripted_quality(monkeypatch, [_report("check", residual=0.9)])
+        assert render(user_client, marked, quality="balanced").json()["job"]["status"] == "completed"
+        assert len(calls) == 1
+    finally:
+        monkeypatch.undo()
+        get_settings.cache_clear()

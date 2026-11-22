@@ -44,10 +44,10 @@ export function formatFrameRate(fps: number): string {
   return `${Number(fps.toFixed(2))} FPS`;
 }
 
-const CONTAINER_NAMES: Record<string, string> = { mp4: "MP4", mov: "MOV", m4v: "MP4", webm: "WebM", avi: "AVI", matroska: "WebM" };
+const CONTAINER_NAMES: Record<string, string> = { mp4: "MP4", mov: "MOV", m4v: "MP4", webm: "WebM", mkv: "MKV", avi: "AVI", matroska: "WebM" };
 // ffprobe names the *demuxer*, which is the same ("mov") for .mp4 and .mov files and the same ("matroska") for .webm and .mkv, so
 // for those families the file's own extension says what the person would call it.
-const FAMILIES: Record<string, string[]> = { mov: ["mp4", "mov", "m4v"], matroska: ["webm"] };
+const FAMILIES: Record<string, string[]> = { mov: ["mp4", "mov", "m4v"], matroska: ["webm", "mkv"] };
 
 export function formatContainer(container: string | null | undefined, filename?: string | null): string {
   if (!container) return "Unknown";

@@ -46,9 +46,10 @@ from app.models.job import (
 from app.models.mask import TRACKING_DONE
 from app.schemas.mask import MaskDocument
 from app.services.cleanup import extend_retention
-from app.services.quality import check_result, warnings_from
+from app.services.quality import check_result, retry_quality, severity, warnings_from
 from app.storage.keys import output_key
 from app.storage.s3 import ObjectStorage, StorageError, get_storage
+from app.video.containers import CONTENT_TYPES
 from app.video.ffmpeg import ProcessingCancelled, ProcessingError
 from app.video.pipeline import RenderSettings, render_restored_video
 
@@ -60,7 +61,6 @@ STORAGE_FAILURE = "The video file couldn't be read or saved. Please try again."
 WORKER_LOST = "Rendering didn't finish (the worker stopped). Please try again."
 NOT_PICKED_UP = "No worker picked this job up. Please try again, or contact support if it keeps happening."
 PROGRESS_INTERVAL_SECONDS = 1.0
-CONTENT_TYPES = {"mp4": "video/mp4", "webm": "video/webm"}
 
 
 def _now() -> datetime:
@@ -211,24 +211,54 @@ def run_render(
                 storage.download_to(original_key, local)
                 if not progress.still_wanted():
                     raise ProcessingCancelled
-                result = render_restored_video(
-                    local,
-                    Path(tmp) / f"restored.{container}",
-                    document=document,
-                    tracking=tracking,
-                    engine=engine,
-                    work_dir=Path(tmp),
-                    settings=RenderSettings(
-                        quality=render_settings.get("quality", "balanced"),
-                        container=container,
-                        output_height=render_settings.get("output_height"),
-                        codec=render_settings.get("codec"),
-                        keep_audio=bool(render_settings.get("keep_audio", True)),
-                    ),
-                    expected_frames=expected_frames,
-                    progress=progress,
-                )
+                first_quality = str(render_settings.get("quality", "balanced"))
+
+                def render_at(quality_level: str, target: Path) -> Any:
+                    work = Path(tmp) / f"work-{quality_level}"  # each pass has its own folder: the pipeline's files are named by container
+                    work.mkdir(exist_ok=True)
+                    return render_restored_video(
+                        local,
+                        target,
+                        document=document,
+                        tracking=tracking,
+                        engine=engine,
+                        work_dir=work,
+                        settings=RenderSettings(
+                            quality=quality_level,
+                            container=container,
+                            output_height=render_settings.get("output_height"),
+                            codec=render_settings.get("codec"),
+                            keep_audio=bool(render_settings.get("keep_audio", True)),
+                        ),
+                        expected_frames=expected_frames,
+                        progress=progress,
+                    )
+
+                result = render_at(first_quality, Path(tmp) / f"restored.{container}")
                 quality = _quality(local, result.path, document, tracking, expected_frames)
+                retry_notes: list[str] = []
+                again = retry_quality(first_quality, quality) if settings.qc_retry else None
+                if again and time.monotonic() - started < settings.render_time_limit_seconds / 2:
+                    # The check found the mark still showing or the fill flickering. One more pass at the highest quality;
+                    # the better-scoring of the two is kept, and the person is told which one it was.
+                    try:
+                        second = render_at(again, Path(tmp) / f"restored-{again}.{container}")
+                        second_quality = _quality(local, second.path, document, tracking, expected_frames)
+                    except ProcessingCancelled:
+                        raise
+                    except Exception:
+                        # A good first result is never lost to a failed second attempt.
+                        logger.exception("quality retry failed; keeping the first render")
+                        second = None
+                        second_quality = quality
+                        retry_notes.append(f"The first render ({first_quality}) was flagged by the automatic check. Rendering again at {again} quality failed, so the first one was kept.")
+                    if second is None:
+                        pass
+                    elif severity(second_quality) < severity(quality):
+                        retry_notes.append(f"The first render ({first_quality}) was flagged by the automatic check, so it was rendered again at {again} quality; the second render checked better and is the one you have.")
+                        result, quality = second, second_quality
+                    else:
+                        retry_notes.append(f"The first render ({first_quality}) was flagged by the automatic check. A second render at {again} quality did not check better, so the first one was kept.")
                 if progress(STAGE_SAVING, 0, 1) is False:
                     raise ProcessingCancelled
                 new_key = output_key(user_id, project_id, job_id, container)
@@ -260,7 +290,7 @@ def run_render(
             .where(Job.id == job_id, Job.status == JOB_RUNNING, Job.cancel_requested.is_(False))
             .values(
                 status=JOB_COMPLETED, stage=STAGE_SAVING, completed_at=_now(), error=None, result=result_info,
-                warnings=[*result.warnings, *warnings_from(quality)], output_file_key=new_key, frames_done=result.frames, frames_total=result.frames,
+                warnings=[*result.warnings, *retry_notes, *warnings_from(quality)], output_file_key=new_key, frames_done=result.frames, frames_total=result.frames,
             )
         ).rowcount  # fmt: skip
         project = db.get(Project, project_id)

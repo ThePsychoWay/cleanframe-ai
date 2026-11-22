@@ -140,7 +140,9 @@ export function RemovalSettings(props: RemovalSettingsProps) {
                   onChange={(e) => props.onSettings({ ...settings, container: e.target.value as RenderSettings["container"] })}
                 >
                   <option value="mp4">MP4</option>
+                  <option value="mov">MOV</option>
                   <option value="webm">WebM</option>
+                  <option value="mkv">MKV</option>
                 </select>
               </label>
               <label className="block text-sm text-dim">
